@@ -1,0 +1,27 @@
+[package]
+name = "perf"
+version = "1.0.0"
+edition = "2021"
+description = "Performance-critical primitives for the hybrid AI system."
+
+[lib]
+name = "perf"
+path = "src/lib.rs"
+crate-type = ["rlib"]
+
+[[bin]]
+name = "perf-server"
+path = "src/main.rs"
+
+[dependencies]
+axum = "0.7"
+tokio = { version = "1.40", features = ["macros", "rt-multi-thread", "signal"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+rayon = "1.10"
+crc32fast = "1.4"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1

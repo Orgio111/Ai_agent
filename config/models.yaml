@@ -1,0 +1,61 @@
+# Model routing configuration for NVIDIA NIM
+# Maps task complexity tiers to NIM models.
+
+routing:
+  complex:
+    model: meta/llama-3.1-70b-instruct
+    temperature: 0.4
+    max_tokens: 4096
+    top_p: 0.95
+    description: "Deep reasoning, planning, multi-step analysis"
+  balanced:
+    model: mistralai/mixtral-8x7b-instruct-v0.1
+    temperature: 0.5
+    max_tokens: 2048
+    top_p: 0.9
+    description: "General-purpose reasoning with good speed"
+  fast:
+    model: mistralai/mistral-7b-instruct-v0.3
+    temperature: 0.6
+    max_tokens: 1024
+    top_p: 0.9
+    description: "Low-latency responses, simple tasks"
+  code:
+    model: meta/llama-3.1-70b-instruct
+    temperature: 0.2
+    max_tokens: 4096
+    top_p: 0.95
+    description: "Code generation and review"
+
+embedding:
+  model: nvidia/nv-embedqa-e5-v5
+  dim: 1024
+
+# Heuristic keywords for routing.
+heuristics:
+  complex_keywords:
+    - "design"
+    - "architect"
+    - "plan"
+    - "analyze"
+    - "research"
+    - "strategy"
+    - "reason"
+    - "prove"
+    - "derive"
+  code_keywords:
+    - "code"
+    - "implement"
+    - "function"
+    - "class"
+    - "refactor"
+    - "debug"
+    - "compile"
+  fast_keywords:
+    - "hello"
+    - "hi"
+    - "thanks"
+    - "yes"
+    - "no"
+    - "ok"
+    - "summary"
