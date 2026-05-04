@@ -1,0 +1,19 @@
+Hi Anthropic team,
+
+I’m an independent developer building an open-source autonomous AI agent system inspired by JARVIS-like architectures.
+
+My project focuses on multi-model orchestration, combining different AI systems (LLMs, tools, APIs) into a unified agent capable of real-world task execution. The goal is to move beyond simple chatbots and build production-ready AI systems that can act, automate, and scale.
+
+While the project is still growing and may not yet have large star counts, it addresses a critical gap in the ecosystem: integrating multiple AI models into a single modular system for practical use.
+
+I actively develop:
+- Agent-based architectures
+- Multi-model routing systems
+- Automation workflows
+
+Access to Claude Max would significantly enhance development, especially for long-context reasoning, multi-agent workflows, and system-level experimentation.
+
+Thank you for supporting open-source developers.
+
+Best regards,  
+Orgio111
