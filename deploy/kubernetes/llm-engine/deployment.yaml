@@ -1,0 +1,99 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jarvis-llm-engine
+  namespace: jarvis
+  labels:
+    app: jarvis-llm-engine
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: jarvis-llm-engine
+  template:
+    metadata:
+      labels:
+        app: jarvis-llm-engine
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8002"
+    spec:
+      # GPU nodes (comment out if no GPU)
+      nodeSelector:
+        accelerator: nvidia-gpu
+      tolerations:
+        - key: nvidia.com/gpu
+          operator: Exists
+          effect: NoSchedule
+      containers:
+        - name: llm-engine
+          image: jarvis/llm-engine:latest
+          ports:
+            - containerPort: 8002
+          env:
+            - name: NVIDIA_NIM_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: jarvis-secrets
+                  key: NVIDIA_NIM_API_KEY
+            - name: NVIDIA_NIM_BASE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: jarvis-config
+                  key: NVIDIA_NIM_BASE_URL
+            - name: LLM_ENGINE_PORT
+              value: "8002"
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "http://otel-collector:4317"
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "1Gi"
+            limits:
+              cpu: "2000m"
+              memory: "4Gi"
+              nvidia.com/gpu: "1"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8002
+            initialDelaySeconds: 30
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8002
+            initialDelaySeconds: 15
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: llm-engine
+  namespace: jarvis
+spec:
+  selector:
+    app: jarvis-llm-engine
+  ports:
+    - port: 8002
+      targetPort: 8002
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: jarvis-llm-engine-hpa
+  namespace: jarvis
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: jarvis-llm-engine
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 60

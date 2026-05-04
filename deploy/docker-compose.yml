@@ -1,0 +1,208 @@
+version: '3.9'
+
+x-common-env: &common-env
+  NVIDIA_NIM_API_KEY: ${NVIDIA_NIM_API_KEY:?NVIDIA_NIM_API_KEY must be set}
+  NVIDIA_NIM_BASE_URL: ${NVIDIA_NIM_BASE_URL:-https://integrate.api.nvidia.com/v1}
+  MODEL_COMPLEX: ${MODEL_COMPLEX:-meta/llama-3.1-70b-instruct}
+  MODEL_FAST: ${MODEL_FAST:-mistralai/mistral-7b-instruct-v0.3}
+  MODEL_BALANCED: ${MODEL_BALANCED:-mistralai/mixtral-8x7b-instruct-v0.1}
+  MODEL_EMBED: ${MODEL_EMBED:-nvidia/nv-embedqa-e5-v5}
+
+services:
+  # ── Infrastructure ──────────────────────────────────────────────────────────
+
+  redis:
+    image: redis:7.4-alpine
+    ports: ["6379:6379"]
+    volumes: [redis_data:/data]
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: jarvis
+      POSTGRES_PASSWORD: jarvis
+      POSTGRES_DB: jarvis
+    ports: ["5432:5432"]
+    volumes: [pg_data:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U jarvis -d jarvis"]
+      interval: 5s
+      timeout: 3s
+      retries: 15
+    restart: unless-stopped
+
+  # ── Core Services ────────────────────────────────────────────────────────────
+
+  broker:
+    build:
+      context: ../services/broker
+      dockerfile: Dockerfile
+    ports: ["8001:8001"]
+    environment:
+      REDIS_URL: redis://redis:6379
+      BROKER_ADDR: 0.0.0.0:8001
+      RUST_LOG: info
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  llm-engine:
+    build:
+      context: ../services/llm-engine
+      dockerfile: Dockerfile
+    ports: ["8002:8002"]
+    environment:
+      <<: *common-env
+      LLM_ENGINE_PORT: "8002"
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+    restart: unless-stopped
+
+  memory:
+    build:
+      context: ../services/memory
+      dockerfile: Dockerfile
+    ports: ["8003:8003"]
+    environment:
+      <<: *common-env
+      REDIS_URL: redis://redis:6379
+      DATABASE_URL: postgresql://jarvis:jarvis@postgres:5432/jarvis
+      MEMORY_VECTOR_DIM: "1024"
+      MEMORY_PORT: "8003"
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  agent-core:
+    build:
+      context: ../services/agent-core
+      dockerfile: Dockerfile
+    ports: ["8000:8000"]
+    environment:
+      <<: *common-env
+      BROKER_WS_URL: ws://broker:8001/ws
+      MEMORY_URL: http://memory:8003
+      LLM_ENGINE_URL: http://llm-engine:8002
+      TOOL_SYSTEM_URL: http://tool-system:8004
+      AGENT_CORE_PORT: "8000"
+    depends_on:
+      broker:
+        condition: service_healthy
+      llm-engine:
+        condition: service_healthy
+      memory:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  tool-system:
+    build:
+      context: ../services/tool-system
+      dockerfile: Dockerfile
+    ports: ["8004:8004"]
+    environment:
+      TOOL_SYSTEM_PORT: "8004"
+      SANDBOX_DIR: /tmp/jarvis-sandbox
+      DOCKER_SANDBOX: "false"
+    volumes:
+      - /tmp/jarvis-sandbox:/tmp/jarvis-sandbox
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8004/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  voice:
+    build:
+      context: ../services/voice
+      dockerfile: Dockerfile
+    ports: ["8005:8005"]
+    environment:
+      VOICE_PORT: "8005"
+      WHISPER_MODEL: base
+      WHISPER_DEVICE: cpu
+    volumes:
+      - whisper_cache:/root/.cache/whisper
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8005/health"]
+      interval: 20s
+      timeout: 10s
+      retries: 5
+    restart: unless-stopped
+
+  # ── Observability ────────────────────────────────────────────────────────────
+
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    ports: ["9090:9090"]
+    volumes:
+      - ../services/observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.retention.time=7d'
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:11.3.0
+    ports: ["3001:3000"]
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: jarvis
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ../services/observability/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+    depends_on: [prometheus]
+    restart: unless-stopped
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.112.0
+    ports:
+      - "4317:4317"   # gRPC
+      - "4318:4318"   # HTTP
+      - "8888:8888"   # metrics
+    volumes:
+      - ../services/observability/otel-collector.yml:/etc/otelcol-contrib/config.yaml:ro
+    restart: unless-stopped
+
+volumes:
+  redis_data:
+  pg_data:
+  prometheus_data:
+  grafana_data:
+  whisper_cache:
+
+networks:
+  default:
+    name: jarvis-network
+    driver: bridge

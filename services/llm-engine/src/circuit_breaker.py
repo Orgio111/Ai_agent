@@ -1,0 +1,104 @@
+"""Circuit breaker for NIM API calls."""
+from __future__ import annotations
+
+import asyncio
+import time
+from enum import Enum
+from typing import Optional
+import logging
+
+logger = logging.getLogger(__name__)
+
+
+class CircuitState(Enum):
+    CLOSED = "closed"       # Normal operation
+    OPEN = "open"           # Failing, reject requests
+    HALF_OPEN = "half_open" # Testing recovery
+
+
+class CircuitBreakerOpenError(RuntimeError):
+    pass
+
+
+class CircuitBreaker:
+    """Async circuit breaker with exponential backoff recovery."""
+
+    def __init__(
+        self,
+        failure_threshold: int = 5,
+        recovery_timeout: float = 30.0,
+        success_threshold: int = 2,
+        half_open_max_calls: int = 3,
+    ) -> None:
+        self._failure_threshold = failure_threshold
+        self._recovery_timeout = recovery_timeout
+        self._success_threshold = success_threshold
+        self._half_open_max_calls = half_open_max_calls
+
+        self._state = CircuitState.CLOSED
+        self._failure_count = 0
+        self._success_count = 0
+        self._last_failure_time: Optional[float] = None
+        self._half_open_calls = 0
+        self._lock = asyncio.Lock()
+
+    @property
+    def state(self) -> str:
+        return self._state.value
+
+    async def call(self, coro):
+        """Execute coroutine through the circuit breaker."""
+        async with self._lock:
+            await self._maybe_transition()
+            if self._state == CircuitState.OPEN:
+                raise CircuitBreakerOpenError(
+                    f"Circuit breaker OPEN — last failure {time.time() - (self._last_failure_time or 0):.0f}s ago"
+                )
+            if self._state == CircuitState.HALF_OPEN:
+                if self._half_open_calls >= self._half_open_max_calls:
+                    raise CircuitBreakerOpenError("Half-open call limit reached")
+                self._half_open_calls += 1
+
+        try:
+            result = await coro
+            await self._on_success()
+            return result
+        except Exception as e:
+            await self._on_failure()
+            raise
+
+    async def _on_success(self) -> None:
+        async with self._lock:
+            if self._state == CircuitState.HALF_OPEN:
+                self._success_count += 1
+                if self._success_count >= self._success_threshold:
+                    self._state = CircuitState.CLOSED
+                    self._failure_count = 0
+                    self._success_count = 0
+                    self._half_open_calls = 0
+                    logger.info("Circuit breaker CLOSED (recovered)")
+            elif self._state == CircuitState.CLOSED:
+                self._failure_count = max(0, self._failure_count - 1)
+
+    async def _on_failure(self) -> None:
+        async with self._lock:
+            self._failure_count += 1
+            self._last_failure_time = time.time()
+            if self._state == CircuitState.HALF_OPEN:
+                self._state = CircuitState.OPEN
+                self._half_open_calls = 0
+                logger.warning("Circuit breaker OPEN again (half-open probe failed)")
+            elif self._failure_count >= self._failure_threshold:
+                self._state = CircuitState.OPEN
+                logger.error(f"Circuit breaker OPENED after {self._failure_count} failures")
+
+    async def _maybe_transition(self) -> None:
+        if (
+            self._state == CircuitState.OPEN
+            and self._last_failure_time is not None
+            and (time.time() - self._last_failure_time) >= self._recovery_timeout
+        ):
+            self._state = CircuitState.HALF_OPEN
+            self._half_open_calls = 0
+            self._success_count = 0
+            logger.info("Circuit breaker → HALF_OPEN (probing recovery)")

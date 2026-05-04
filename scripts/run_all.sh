@@ -1,26 +1,15 @@
 #!/usr/bin/env bash
-# Boot the full hybrid AI stack: Rust perf service, Python AI core, Go gateway.
-#
+# JARVIS Autonomous AI OS — Full Stack Launcher
 # Usage:
-#     ./scripts/run_all.sh        # foreground, all three services
-#     STOP=1 ./scripts/run_all.sh # stop services started previously
+#   ./scripts/run_all.sh          # Start all services via Docker Compose
+#   STOP=1 ./scripts/run_all.sh   # Stop all services
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-cd "$ROOT"
-
-PIDS_FILE="$ROOT/.run_all.pids"
 
 stop_services() {
-    if [[ -f "$PIDS_FILE" ]]; then
-        echo "→ stopping previously launched services"
-        while IFS= read -r pid; do
-            if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
-                kill "$pid" 2>/dev/null || true
-            fi
-        done < "$PIDS_FILE"
-        rm -f "$PIDS_FILE"
-    fi
+    echo "Stopping JARVIS services..."
+    cd "$ROOT/deploy" && docker compose down
 }
 
 if [[ "${STOP:-0}" == "1" ]]; then
@@ -28,58 +17,41 @@ if [[ "${STOP:-0}" == "1" ]]; then
     exit 0
 fi
 
-stop_services
-: > "$PIDS_FILE"
-
+# Load .env
 if [[ -f "$ROOT/.env" ]]; then
-    set -a
-    # shellcheck source=/dev/null
-    source "$ROOT/.env"
-    set +a
+    set -a && source "$ROOT/.env" && set +a
 else
-    echo "⚠  .env not found — copy .env.example to .env and add NVIDIA_NIM_API_KEY"
+    echo "WARNING: .env not found — copy .env.example to .env and set NVIDIA_NIM_API_KEY"
 fi
 
-mkdir -p "$ROOT/logs"
-
-# 1. Rust performance service (optional but recommended)
-if command -v cargo >/dev/null 2>&1; then
-    echo "→ starting Rust perf-server"
-    ( cd "$ROOT/performance" && cargo run --release --quiet --bin perf-server ) \
-        >"$ROOT/logs/perf.log" 2>&1 &
-    echo $! >> "$PIDS_FILE"
-else
-    echo "⚠  cargo not installed — skipping Rust perf service"
+# Validate required API key
+if [[ -z "${NVIDIA_NIM_API_KEY:-}" ]] || [[ "$NVIDIA_NIM_API_KEY" == nvapi-your* ]]; then
+    echo "ERROR: NVIDIA_NIM_API_KEY is not set or is a placeholder." >&2
+    echo "       Export a valid key: export NVIDIA_NIM_API_KEY=nvapi-..." >&2
+    exit 1
 fi
 
-# 2. Python AI core
-echo "→ starting Python AI core"
-if [[ ! -d "$ROOT/.venv" ]]; then
-    python3 -m venv "$ROOT/.venv"
-fi
-# shellcheck source=/dev/null
-source "$ROOT/.venv/bin/activate"
-pip install --quiet --upgrade pip
-pip install --quiet -r "$ROOT/ai_core/requirements.txt"
-( cd "$ROOT" && python -m ai_core ) >"$ROOT/logs/ai_core.log" 2>&1 &
-echo $! >> "$PIDS_FILE"
-deactivate
+echo "Starting JARVIS infrastructure..."
+cd "$ROOT/deploy"
+docker compose up -d redis postgres prometheus grafana otel-collector
 
-# 3. Go API gateway
-if command -v go >/dev/null 2>&1; then
-    echo "→ starting Go API gateway"
-    ( cd "$ROOT/api-gateway" && go run . ) \
-        >"$ROOT/logs/gateway.log" 2>&1 &
-    echo $! >> "$PIDS_FILE"
-else
-    echo "⚠  go not installed — skipping API gateway"
-fi
+echo "Waiting for infrastructure to be ready..."
+sleep 5
 
-trap stop_services EXIT INT TERM
+echo "Starting JARVIS microservices..."
+docker compose up -d broker memory llm-engine tool-system voice agent-core
 
-echo "✓ stack started. logs: $ROOT/logs/"
-echo "  - AI core   → http://localhost:${AI_CORE_PORT:-8000}"
-echo "  - Gateway   → http://localhost:${GATEWAY_PORT:-9000}"
-echo "  - Perf      → http://localhost:7070"
-echo "Press Ctrl+C to stop."
-wait
+echo ""
+echo "JARVIS Autonomous AI OS is running:"
+echo "  Agent Core  → http://localhost:8000/docs"
+echo "  Broker      → http://localhost:8001/health (WS: ws://localhost:8001/ws)"
+echo "  LLM Engine  → http://localhost:8002/docs"
+echo "  Memory      → http://localhost:8003/docs"
+echo "  Tool System → http://localhost:8004/docs"
+echo "  Voice       → http://localhost:8005/docs"
+echo "  Prometheus  → http://localhost:9090"
+echo "  Grafana     → http://localhost:3001 (admin/jarvis)"
+echo ""
+echo "Start UI:    cd services/ui && npm install && npm run dev"
+echo "View logs:   cd deploy && docker compose logs -f --tail=50"
+echo "Stop all:    STOP=1 ./scripts/run_all.sh"
