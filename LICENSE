@@ -1,19 +1,21 @@
-Hi Anthropic team,
+MIT License
 
-I’m an independent developer building an open-source autonomous AI agent system inspired by JARVIS-like architectures.
+Copyright (c) 2026 MrOrgio
 
-My project focuses on multi-model orchestration, combining different AI systems (LLMs, tools, APIs) into a unified agent capable of real-world task execution. The goal is to move beyond simple chatbots and build production-ready AI systems that can act, automate, and scale.
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
 
-While the project is still growing and may not yet have large star counts, it addresses a critical gap in the ecosystem: integrating multiple AI models into a single modular system for practical use.
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
 
-I actively develop:
-- Agent-based architectures
-- Multi-model routing systems
-- Automation workflows
-
-Access to Claude Max would significantly enhance development, especially for long-context reasoning, multi-agent workflows, and system-level experimentation.
-
-Thank you for supporting open-source developers.
-
-Best regards,  
-Orgio111
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
