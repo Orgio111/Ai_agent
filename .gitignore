@@ -1,0 +1,53 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+ENV/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Go
+api-gateway/bin/
+api-gateway/api-gateway
+*.exe
+*.test
+*.out
+
+# Rust
+performance/target/
+performance/Cargo.lock.bak
+**/*.rs.bk
+
+# Logs
+*.log
+logs/
+
+# Memory / Data
+data/
+*.faiss
+*.pkl
+memory_store/
+
+# Node (if added later)
+node_modules/

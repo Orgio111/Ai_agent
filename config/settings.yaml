@@ -1,0 +1,64 @@
+system:
+  name: "Hybrid AI System"
+  version: "1.0.0"
+  identity: "JARVIS-class autonomous AI operating system"
+  voice_persona: "calm, intelligent, female-toned natural voice"
+  languages:
+    - en
+    - mn
+    - ru
+    - zh
+    - es
+
+agents:
+  planner:
+    enabled: true
+    tier: complex
+  executor:
+    enabled: true
+    tier: balanced
+  coder:
+    enabled: true
+    tier: code
+  critic:
+    enabled: true
+    tier: balanced
+
+orchestrator:
+  max_iterations: 5
+  critic_threshold: 0.75
+  parallel_tools: true
+  trace: true
+
+memory:
+  short_term:
+    max_messages: 50
+  long_term:
+    backend: faiss
+    dim: 1024
+    metric: cosine
+    persist: true
+
+tools:
+  shell:
+    enabled: true
+    allowed_commands:
+      - "ls"
+      - "echo"
+      - "cat"
+      - "pwd"
+      - "uname"
+      - "whoami"
+      - "date"
+      - "df"
+      - "du"
+      - "ps"
+  filesystem:
+    enabled: true
+    sandbox_dir: "./data/sandbox"
+  http:
+    enabled: true
+    timeout_seconds: 20
+  rust_perf:
+    enabled: true
+    url_env: RUST_PERF_URL
