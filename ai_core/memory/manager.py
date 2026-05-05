@@ -1,6 +1,7 @@
 """High-level memory facade combining short and long term stores."""
 from __future__ import annotations
 
+import asyncio
 from typing import Any, Dict, List, Optional
 
 from ..config import get_settings
@@ -40,7 +41,9 @@ class MemoryManager:
         client = get_nim_client()
         emb = (await client.embed([actual_text]))[0]
         effective_tags = tags or [session_id, memory_type]
-        rec = self.long.add(text=actual_text, embedding=emb, tags=effective_tags, meta=meta or {})
+        rec = await asyncio.to_thread(
+            self.long.add, text=actual_text, embedding=emb, tags=effective_tags, meta=meta or {}
+        )
         logger.debug(f"stored memory id={rec.id} type={memory_type}")
         return rec
 
