@@ -1,12 +1,12 @@
 """Permission system: role-based access control for tool execution."""
 from __future__ import annotations
 
+import base64
 import hashlib
 import hmac
-import time
-import base64
 import json
 import logging
+import time
 
 logger = logging.getLogger(__name__)
 

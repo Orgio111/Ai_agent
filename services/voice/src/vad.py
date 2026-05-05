@@ -1,10 +1,9 @@
 """Voice Activity Detector using WebRTC VAD."""
 from __future__ import annotations
 
+import logging
 import struct
 from collections import deque
-from typing import Optional
-import logging
 
 logger = logging.getLogger(__name__)
 

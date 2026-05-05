@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import os
 import time
 from typing import Any, AsyncIterator, Optional
@@ -16,8 +17,8 @@ from tenacity import (
     wait_exponential,
 )
 
-from .circuit_breaker import CircuitBreaker, CircuitBreakerOpenError
-from .gpu_scheduler import GPUScheduler, AllocationHandle
+from .circuit_breaker import CircuitBreaker
+from .gpu_scheduler import GPUScheduler
 from .model_router import ModelRouter, RoutingDecision
 from .models import (
     ChatRequest,
@@ -27,8 +28,7 @@ from .models import (
     HealthResponse,
     ModelInfoResponse,
 )
-from .observability import TOKENS_USED, LLM_LATENCY
-import logging
+from .observability import LLM_LATENCY, TOKENS_USED
 
 logger = logging.getLogger(__name__)
 

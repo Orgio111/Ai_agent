@@ -6,7 +6,6 @@ from typing import Any, Dict
 from ..logging_setup import logger
 from .base import AgentContext, BaseAgent
 
-
 CRITIC_SYSTEM = """You are CRITIC, a strict reviewer.
 You evaluate whether the executor's final answer satisfies the user goal.
 

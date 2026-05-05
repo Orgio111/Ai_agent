@@ -3,11 +3,10 @@ from __future__ import annotations
 
 import asyncio
 import json
-import time
+import logging
 from typing import Any, Optional
 
 import websockets
-import logging
 
 logger = logging.getLogger(__name__)
 

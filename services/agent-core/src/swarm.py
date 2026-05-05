@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import time
-from typing import Any, AsyncIterator, Optional
+from typing import AsyncIterator, Optional
 
 import httpx
 
@@ -18,7 +19,6 @@ from .agents import (
     SmartExecutorAgent,
 )
 from .models import AgentRequest, AgentResponse, AgentStatus, AgentStep
-import logging
 
 logger = logging.getLogger(__name__)
 

@@ -2,10 +2,10 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import time
 from enum import Enum
 from typing import Optional
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +63,7 @@ class CircuitBreaker:
             result = await coro
             await self._on_success()
             return result
-        except Exception as e:
+        except Exception:
             await self._on_failure()
             raise
 

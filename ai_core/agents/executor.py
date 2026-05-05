@@ -1,6 +1,8 @@
 """Executor agent: runs the plan, coordinating tools and sub-agents."""
 from __future__ import annotations
 
+import json
+import re
 from typing import Any, Dict, List, Optional
 
 from ..logging_setup import logger
@@ -8,6 +10,7 @@ from ..tools import get_registry
 from .base import AgentContext, BaseAgent
 from .coder import CoderAgent
 
+_TOOL_CALL_RE = re.compile(r"<tool_call>(.*?)</tool_call>", re.DOTALL)
 
 EXECUTOR_SYSTEM = """You are EXECUTOR, the action agent.
 Given a single plan step plus prior step outputs, you produce a concise
@@ -29,6 +32,35 @@ class ExecutorAgent(BaseAgent):
         super().__init__(*a, **kw)
         self.tools = get_registry()
         self.coder = CoderAgent(client=self.client)
+
+    async def call(self, ctx: AgentContext, user_prompt: str, **opts: Any) -> Dict[str, Any]:
+        result = await super().call(ctx, user_prompt, **opts)
+        content = result.get("content", "")
+        matches = _TOOL_CALL_RE.findall(content)
+        if matches:
+            parsed = []
+            for m in matches:
+                try:
+                    parsed.append(json.loads(m.strip()))
+                except json.JSONDecodeError:
+                    pass
+            if parsed:
+                result["tool_results"] = await self._execute_tools(ctx, parsed)
+        return result
+
+    async def _execute_tools(
+        self, ctx: AgentContext, tool_calls: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
+        results: List[Dict[str, Any]] = []
+        for tc in tool_calls:
+            tool_name = tc.get("tool", "")
+            args = tc.get("args", {})
+            try:
+                res = await self.tools.run(tool_name, **args)
+                results.append({"tool": tool_name, "ok": res.ok, "output": res.output})
+            except Exception as e:
+                results.append({"tool": tool_name, "ok": False, "error": str(e)})
+        return results
 
     async def execute_plan(self, ctx: AgentContext, plan: Dict[str, Any]) -> Dict[str, Any]:
         steps: List[Dict[str, Any]] = plan.get("steps", [])

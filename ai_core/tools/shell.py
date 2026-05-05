@@ -8,10 +8,12 @@ from __future__ import annotations
 
 import asyncio
 import shlex
-from typing import Any, List
+from typing import Any, Dict, List
 
 from ..config import get_settings
 from .base import Tool, ToolResult
+
+_DANGEROUS = frozenset({"rm", "dd", "mkfs", "fdisk", "shutdown", "reboot", "kill", "killall"})
 
 
 class ShellTool(Tool):
@@ -45,10 +47,14 @@ class ShellTool(Tool):
             return ToolResult(ok=False, error="empty command")
 
         head = argv[0]
+
+        if head in _DANGEROUS:
+            return ToolResult(ok=False, error=f"dangerous command '{head}' not in allow-list")
+
         if self.allowed and head not in self.allowed:
             return ToolResult(
                 ok=False,
-                error=f"command '{head}' not in allow-list: {self.allowed}",
+                error=f"command '{head}' not in allowlist: {self.allowed}",
             )
 
         try:
@@ -73,3 +79,17 @@ class ShellTool(Tool):
             error="" if proc.returncode == 0 else f"exit {proc.returncode}",
             meta={"argv": argv},
         )
+
+    async def execute(self, args: Dict[str, Any]) -> Dict[str, Any]:
+        """Dict-based execute interface used by tests and the executor agent."""
+        command = args.get("command", "")
+        timeout = float(args.get("timeout", 15.0))
+        result = await self.run(command=command, timeout=timeout)
+        if not result.ok or result.error:
+            return {"stdout": "", "stderr": "", "error": result.error or "command failed"}
+        output = result.output or {}
+        return {
+            "stdout": output.get("stdout", ""),
+            "stderr": output.get("stderr", ""),
+            "returncode": output.get("returncode", 0),
+        }

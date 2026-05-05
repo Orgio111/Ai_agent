@@ -1,9 +1,9 @@
 from .base import AgentBase
-from .planner import PlannerAgent
-from .executor import SmartExecutorAgent
 from .critic import CriticAgent
-from .researcher import ResearchAgent
+from .executor import SmartExecutorAgent
 from .optimizer import OptimizerAgent, SelfImprovingLoop
+from .planner import PlannerAgent
+from .researcher import ResearchAgent
 
 __all__ = [
     "AgentBase",

@@ -67,7 +67,7 @@ class WhisperSTT:
                 language=result.language or "en",
                 confidence=1.0 - result.avg_logprob * (-1) if hasattr(result, 'avg_logprob') else 0.9,
             )
-        except Exception as e:
+        except Exception:
             return STTResponse(text="", language="en", confidence=0.0)
 
     def _bytes_to_numpy(self, audio_bytes: bytes) -> np.ndarray:

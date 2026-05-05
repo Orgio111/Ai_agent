@@ -52,7 +52,7 @@ class ShellTool:
         dangerous = ["&&", "||", ";", "|", ">", "<", "`", "$(",
                      "rm", "rmdir", "mv", "chmod", "chown", "kill", "pkill"]
         if any(d in command for d in dangerous):
-            return {"error": f"Dangerous pattern detected in command"}
+            return {"error": "Dangerous pattern detected in command"}
 
         try:
             proc = await asyncio.create_subprocess_shell(

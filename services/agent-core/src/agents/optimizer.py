@@ -71,7 +71,8 @@ Think systematically. Small improvements compound over time."""
         }
 
     def _parse_optimization(self, text: str) -> dict:
-        import json, re
+        import json
+        import re
         try:
             return json.loads(text)
         except json.JSONDecodeError:

@@ -13,10 +13,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from starlette.responses import Response
 
+from .models import STTResponse, TTSRequest, VoiceConfig
 from .stt import WhisperSTT
 from .tts import EdgeTTS
 from .vad import VoiceActivityDetector
-from .models import TTSRequest, STTResponse, VoiceConfig
 
 stt_engine: WhisperSTT | None = None
 tts_engine: EdgeTTS | None = None
@@ -152,8 +152,8 @@ async def transcribe_audio(request: dict) -> STTResponse:
 async def text_to_speech(req: TTSRequest):
     """Stream TTS audio for a text input."""
     assert tts_engine is not None
+
     from fastapi.responses import StreamingResponse
-    import base64
 
     async def audio_generator():
         async for chunk in tts_engine.synthesize_stream(req.text, voice=req.voice, rate=req.rate):

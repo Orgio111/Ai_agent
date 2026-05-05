@@ -2,11 +2,9 @@
 Ebbinghaus forgetting curve and recency scoring."""
 from __future__ import annotations
 
-import math
-from datetime import datetime, timedelta, timezone
-from typing import TYPE_CHECKING
-
 import logging
+import math
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from .episodic import EpisodicMemory

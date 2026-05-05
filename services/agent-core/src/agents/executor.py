@@ -3,10 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-import time
 from typing import Any, Optional
-
-import httpx
 
 from .base import AgentBase
 

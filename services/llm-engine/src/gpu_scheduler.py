@@ -2,14 +2,12 @@
 supports MIG partitioning and multi-node cluster awareness."""
 from __future__ import annotations
 
-import asyncio
-import os
+import logging
 import subprocess
+import threading
+import time
 from dataclasses import dataclass, field
 from typing import Optional
-import time
-import threading
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -86,7 +84,6 @@ class GPUScheduler:
             pass
 
         # CPU-only mode
-        cpu_count = os.cpu_count() or 1
         logger.warning("No NVIDIA GPUs found — running in CPU-only mode")
         self._devices = []
 

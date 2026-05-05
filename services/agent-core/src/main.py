@@ -2,7 +2,6 @@
 lifecycle, goal engine, and self-improving loop."""
 from __future__ import annotations
 
-import asyncio
 import os
 from contextlib import asynccontextmanager
 from typing import AsyncIterator
@@ -14,9 +13,8 @@ from fastapi.responses import StreamingResponse
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from starlette.responses import Response
 
-from .swarm import AgentSwarm
-from .lifecycle import LifecycleManager
 from .goal_engine import GoalEngine
+from .lifecycle import LifecycleManager
 from .models import (
     AgentRequest,
     AgentResponse,
@@ -24,6 +22,7 @@ from .models import (
     GoalStatusResponse,
     SwarmStatusResponse,
 )
+from .swarm import AgentSwarm
 
 swarm: AgentSwarm | None = None
 lifecycle: LifecycleManager | None = None
@@ -40,7 +39,6 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     broker_url = os.environ.get("BROKER_WS_URL", "ws://localhost:8001/ws")
     memory_url = os.environ.get("MEMORY_URL", "http://localhost:8003")
-    llm_url = os.environ.get("LLM_ENGINE_URL", "http://localhost:8002")
     tool_url = os.environ.get("TOOL_SYSTEM_URL", "http://localhost:8004")
 
     swarm = AgentSwarm(

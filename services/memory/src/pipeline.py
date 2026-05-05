@@ -4,15 +4,17 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
-import json
+import logging
 import time
 import uuid
 from datetime import datetime, timezone
-from typing import Any, Optional
+from typing import Optional
 
 import httpx
 import numpy as np
 
+from .decay import DecayEngine
+from .episodic import EpisodicMemory
 from .models import (
     MemoryDeleteRequest,
     MemoryQueryRequest,
@@ -22,12 +24,9 @@ from .models import (
     MemoryStoreRequest,
     MemoryType,
 )
-from .working import WorkingMemory
-from .episodic import EpisodicMemory
-from .semantic import SemanticMemory
 from .procedural import ProceduralMemory
-from .decay import DecayEngine
-import logging
+from .semantic import SemanticMemory
+from .working import WorkingMemory
 
 logger = logging.getLogger(__name__)
 

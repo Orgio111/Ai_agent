@@ -7,19 +7,19 @@ from contextlib import asynccontextmanager
 from typing import AsyncIterator
 
 import uvicorn
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from starlette.responses import Response
 
-from .pipeline import MemoryPipeline
 from .models import (
-    MemoryStoreRequest,
+    MemoryDeleteRequest,
     MemoryQueryRequest,
     MemoryQueryResponse,
-    MemoryDeleteRequest,
     MemoryStatsResponse,
+    MemoryStoreRequest,
 )
+from .pipeline import MemoryPipeline
 
 pipeline: MemoryPipeline | None = None
 

@@ -1,9 +1,8 @@
 """edge-tts streaming TTS engine with interruption support."""
 from __future__ import annotations
 
-import asyncio
-from typing import AsyncIterator, Optional
 import logging
+from typing import AsyncIterator, Optional
 
 logger = logging.getLogger(__name__)
 

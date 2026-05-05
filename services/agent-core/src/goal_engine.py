@@ -3,13 +3,12 @@ interrupt/resume, multi-goal scheduling."""
 from __future__ import annotations
 
 import asyncio
-import json
+import logging
 import uuid
 from datetime import datetime, timezone
-from typing import Any, Optional
+from typing import Optional
 
 import httpx
-import logging
 
 from .models import (
     GoalCreateRequest,
@@ -111,12 +110,6 @@ class GoalEngine:
             logger.info(f"Executing goal {goal_id}: {goal['description'][:60]}")
 
             # Step 1: Plan the goal into tasks
-            from .models import AgentRequest
-            plan_req = AgentRequest(
-                prompt=f"Create a detailed plan to accomplish: {goal['description']}",
-                session_id=f"goal_{goal_id}",
-                agent_types=["planner"],
-            )
             assert self._swarm.planner is not None
             plan_result = await self._swarm.planner.plan(
                 goal["description"],

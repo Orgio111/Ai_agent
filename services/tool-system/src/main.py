@@ -13,15 +13,15 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from starlette.responses import Response
 
-from .registry import ToolRegistry
-from .sandbox import SandboxExecutor
-from .permissions import PermissionManager
 from .models import (
     ToolExecuteRequest,
     ToolExecuteResponse,
     ToolListResponse,
     ToolRegisterRequest,
 )
+from .permissions import PermissionManager
+from .registry import ToolRegistry
+from .sandbox import SandboxExecutor
 
 registry: ToolRegistry | None = None
 sandbox: SandboxExecutor | None = None

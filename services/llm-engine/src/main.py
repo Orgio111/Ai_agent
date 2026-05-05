@@ -2,14 +2,13 @@
 circuit breakers, streaming, and gRPC support."""
 from __future__ import annotations
 
-import asyncio
 import os
 import time
 from contextlib import asynccontextmanager
 from typing import AsyncIterator
 
 import uvicorn
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+
 from prometheus_client import Counter, Histogram
 
 TOKENS_USED = Counter(
@@ -30,9 +31,9 @@ def setup_telemetry() -> None:
         return
 
     from opentelemetry import trace
+    from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
     from opentelemetry.sdk.trace import TracerProvider
     from opentelemetry.sdk.trace.export import BatchSpanProcessor
-    from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 
     provider = TracerProvider()
     provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter(endpoint=otel_endpoint)))
