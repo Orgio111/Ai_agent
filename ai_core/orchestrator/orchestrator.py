@@ -1,4 +1,11 @@
-"""Autonomous loop: Planner → Executor → Critic, with self-improvement."""
+"""Autonomous loop: Classify → Select → Planner → Executor → Audit → Critic.
+
+Integrates:
+  - TaskClassifier (keyword-based task routing)
+  - 3-tier ModelSelector (NIM → OpenRouter → Ranked fallback)
+  - SelfImprovingLoop (performance tracking + adaptation)
+  - AutonomousGoalSystem (long-horizon goal management)
+"""
 from __future__ import annotations
 
 import asyncio
@@ -8,14 +15,24 @@ from typing import Any, Dict, List, Optional
 
 from ..agents import (
     AgentContext,
+    AuditAgent,
     CoderAgent,
     CriticAgent,
+    EngineerAgent,
     ExecutorAgent,
+    PerceptionAgent,
     PlannerAgent,
+    ReporterAgent,
+    ResearchAgent,
 )
 from ..config import get_settings
+from ..goals.system import AutonomousGoalSystem
 from ..logging_setup import logger
 from ..memory import get_memory
+from ..model_selector import get_selector
+from ..multi_model import get_executor as get_multi_executor
+from ..orchestrator.task_classifier import get_classifier
+from ..self_improve.loop import SelfImprovingLoop
 
 
 @dataclass
@@ -43,7 +60,7 @@ class RunResult:
 
 
 class Orchestrator:
-    """Coordinates the four agents and the memory system."""
+    """Coordinates agents, memory, task classification, and self-improvement."""
 
     def __init__(self) -> None:
         self.settings = get_settings()
@@ -52,12 +69,33 @@ class Orchestrator:
         self.executor = ExecutorAgent()
         self.coder = CoderAgent()
         self.critic = CriticAgent()
+        # Specialized agents (3-tier model selection)
+        self.perception = PerceptionAgent()
+        self.researcher = ResearchAgent()
+        self.engineer = EngineerAgent()
+        self.auditor = AuditAgent()
+        self.reporter = ReporterAgent()
+        # Routing + improvement
+        self.classifier = get_classifier()
+        self.selector = get_selector()
+        self.multi_executor = get_multi_executor()
+        data_dir = self.settings.memory_dir.parent / "system"
+        self.goal_system = AutonomousGoalSystem(
+            persist_path=data_dir / "goals.json"
+        )
+        self.self_improve = SelfImprovingLoop(
+            persist_path=data_dir / "performance.json"
+        )
         self.max_iterations = self.settings.max_iterations
         self.threshold = self.settings.critic_threshold
 
-    async def run(self, goal: str, session_id: str = "default") -> RunResult:
+    async def run(self, goal: str, session_id: str = "default") -> RunResult:  # noqa: C901
         start = time.perf_counter()
         trace: List[Dict[str, Any]] = []
+
+        # Classify task type for intelligent model routing
+        task_type = self.classifier.classify(goal)
+        logger.info(f"[orchestrator] task_type={task_type.value} goal={goal[:60]}...")
 
         ctx = AgentContext(session_id=session_id, goal=goal)
         ctx.history = self.memory.history(session_id)
@@ -102,6 +140,17 @@ class Orchestrator:
 
         final = execution.get("final", "") if execution else ""
         self.memory.add_message(session_id, "assistant", final)
+
+        # Record performance for self-improvement (critic score as quality proxy)
+        quality = float(verdict.get("score", 0.5))
+        self.self_improve.record(
+            model_id=self.settings.models.routing.get("balanced", None) and
+                     self.settings.models.routing["balanced"].model or "unknown",
+            task_type=task_type,
+            quality_score=quality,
+            latency_ms=(time.perf_counter() - start) * 1000,
+            success=verdict.get("verdict") == "accept" or quality >= self.threshold,
+        )
 
         # Fire-and-forget long-term persistence — doesn't block returning the result.
         asyncio.create_task(self._store_async(goal, final, verdict, session_id))

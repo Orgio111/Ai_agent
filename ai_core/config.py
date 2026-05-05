@@ -53,6 +53,9 @@ class Settings(BaseModel):
             "NVIDIA_NIM_BASE_URL", "https://integrate.api.nvidia.com/v1"
         )
     )
+    openrouter_api_key: str = Field(
+        default_factory=lambda: os.getenv("OPENROUTER_API_KEY", "")
+    )
 
     # Service binding
     ai_core_host: str = Field(default_factory=lambda: os.getenv("AI_CORE_HOST", "0.0.0.0"))
