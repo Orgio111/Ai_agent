@@ -6,6 +6,7 @@ import asyncio
 import json
 import logging
 import time
+from graphlib import TopologicalSorter
 from typing import AsyncIterator, Optional
 
 import httpx
@@ -118,30 +119,34 @@ class AgentSwarm:
                 )
                 total_tokens += r["usage"].get("total_tokens", 0)
 
-        # 3. Execute tasks (respecting DAG dependencies)
+        # 3. Execute tasks — tasks at the same dependency level run in parallel.
         execution_results: dict[str, str] = {}
         exec_tasks = [t for t in tasks if t.get("agent") != "researcher"]
 
-        for task in self._topological_sort(exec_tasks):
+        for level_tasks in self._topological_levels(exec_tasks):
             task_context = {**req.context, "completed_tasks": execution_results}
-            exec_result = await self.executor.execute(
-                task=task,
-                session_id=session_id,
-                history=history,
-                context=task_context,
-            )
-            execution_results[task["task_id"]] = exec_result["content"]
-            steps.append(
-                AgentStep(
-                    agent="executor",
-                    input=task["description"],
-                    output=exec_result["content"][:500],
-                    tool_calls=exec_result.get("tool_calls", []),
-                    duration_ms=exec_result["latency_ms"],
-                    tokens=exec_result["usage"].get("total_tokens", 0),
+            level_results = await asyncio.gather(*[
+                self.executor.execute(
+                    task=task,
+                    session_id=session_id,
+                    history=history,
+                    context=task_context,
                 )
-            )
-            total_tokens += exec_result["usage"].get("total_tokens", 0)
+                for task in level_tasks
+            ])
+            for task, exec_result in zip(level_tasks, level_results):
+                execution_results[task["task_id"]] = exec_result["content"]
+                steps.append(
+                    AgentStep(
+                        agent="executor",
+                        input=task["description"],
+                        output=exec_result["content"][:500],
+                        tool_calls=exec_result.get("tool_calls", []),
+                        duration_ms=exec_result["latency_ms"],
+                        tokens=exec_result["usage"].get("total_tokens", 0),
+                    )
+                )
+                total_tokens += exec_result["usage"].get("total_tokens", 0)
 
         # 4. Synthesize final result
         final_result = self._synthesize(req.prompt, execution_results, plan)
@@ -240,31 +245,40 @@ class AgentSwarm:
         ]
 
     def _topological_sort(self, tasks: list[dict]) -> list[dict]:
-        """Kahn's algorithm for DAG topological sort."""
+        """Return tasks in topological order using stdlib graphlib."""
         if not tasks:
             return []
         task_map = {t["task_id"]: t for t in tasks}
-        in_degree = {t["task_id"]: 0 for t in tasks}
-        for t in tasks:
-            for dep in t.get("depends_on", []):
-                if dep in in_degree:
-                    in_degree[t["task_id"]] += 1
+        deps = {
+            t["task_id"]: {d for d in t.get("depends_on", []) if d in task_map}
+            for t in tasks
+        }
+        try:
+            return [task_map[tid] for tid in TopologicalSorter(deps).static_order()]
+        except Exception:
+            return tasks  # cycle fallback
 
-        queue = [tid for tid, deg in in_degree.items() if deg == 0]
-        result = []
-        while queue:
-            tid = queue.pop(0)
-            if tid in task_map:
-                result.append(task_map[tid])
-            for t in tasks:
-                if tid in t.get("depends_on", []):
-                    in_degree[t["task_id"]] -= 1
-                    if in_degree[t["task_id"]] == 0:
-                        queue.append(t["task_id"])
-
-        # Append any remaining tasks (in case of cycles)
-        remaining = [t for t in tasks if t not in result]
-        return result + remaining
+    def _topological_levels(self, tasks: list[dict]) -> list[list[dict]]:
+        """Group tasks by dependency level so each level can run in parallel."""
+        if not tasks:
+            return []
+        task_map = {t["task_id"]: t for t in tasks}
+        remaining: dict[str, set[str]] = {
+            t["task_id"]: {d for d in t.get("depends_on", []) if d in task_map}
+            for t in tasks
+        }
+        levels: list[list[dict]] = []
+        while remaining:
+            ready = [tid for tid, deps in remaining.items() if not deps]
+            if not ready:
+                ready = list(remaining.keys())  # break cycles
+            levels.append([task_map[tid] for tid in ready])
+            done = set(ready)
+            for tid in ready:
+                del remaining[tid]
+            for deps in remaining.values():
+                deps -= done
+        return levels
 
     def _synthesize(
         self, prompt: str, results: dict[str, str], plan: dict

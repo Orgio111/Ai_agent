@@ -138,30 +138,22 @@ class MemoryPipeline:
         embedding = await self._embed(req.query)
         embed_ms = (time.monotonic() - start) * 1000
 
-        all_results: list[MemoryResult] = []
-
+        # Fan-out: all memory types searched in parallel.
+        coros = []
         for mem_type in req.memory_types:
             if mem_type == MemoryType.WORKING and self._working and req.session_id:
-                items = await self._working.get_all(req.session_id, limit=req.limit)
-                for item in items:
-                    all_results.append(self._to_result(item, score=1.0))
-
+                coros.append(self._search_working(req))
             elif mem_type == MemoryType.EPISODIC and self._episodic:
-                hits = await self._episodic.search(
-                    embedding, k=req.limit, session_id=req.session_id,
-                    max_age_hours=req.max_age_hours, min_score=req.min_score,
-                )
-                all_results.extend(hits)
-
+                coros.append(self._search_episodic(embedding, req))
             elif mem_type == MemoryType.SEMANTIC and self._semantic:
-                hits = await self._semantic.search(
-                    embedding, k=req.limit, min_score=req.min_score
-                )
-                all_results.extend(hits)
-
+                coros.append(self._search_semantic(embedding, req))
             elif mem_type == MemoryType.PROCEDURAL and self._procedural:
-                hits = await self._procedural.search(req.query, limit=req.limit)
-                all_results.extend(hits)
+                coros.append(self._search_procedural(req))
+
+        results_per_type: list[list[MemoryResult]] = (
+            list(await asyncio.gather(*coros)) if coros else []
+        )
+        all_results: list[MemoryResult] = [r for sub in results_per_type for r in sub]
 
         # Deduplicate by content hash, keep highest score
         seen: dict[str, MemoryResult] = {}
@@ -234,6 +226,26 @@ class MemoryPipeline:
             "redis": redis_ok,
             "postgres": pg_ok,
         }
+
+    async def _search_working(self, req: MemoryQueryRequest) -> list[MemoryResult]:
+        assert self._working is not None
+        items = await self._working.get_all(req.session_id, limit=req.limit)
+        return [self._to_result(item, score=1.0) for item in items]
+
+    async def _search_episodic(self, embedding: np.ndarray, req: MemoryQueryRequest) -> list[MemoryResult]:
+        assert self._episodic is not None
+        return await self._episodic.search(
+            embedding, k=req.limit, session_id=req.session_id,
+            max_age_hours=req.max_age_hours, min_score=req.min_score,
+        )
+
+    async def _search_semantic(self, embedding: np.ndarray, req: MemoryQueryRequest) -> list[MemoryResult]:
+        assert self._semantic is not None
+        return await self._semantic.search(embedding, k=req.limit, min_score=req.min_score)
+
+    async def _search_procedural(self, req: MemoryQueryRequest) -> list[MemoryResult]:
+        assert self._procedural is not None
+        return await self._procedural.search(req.query, limit=req.limit)
 
     async def _embed(self, text: str) -> np.ndarray:
         assert self._http is not None
