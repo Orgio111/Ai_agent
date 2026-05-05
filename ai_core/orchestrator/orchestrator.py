@@ -1,6 +1,7 @@
 """Autonomous loop: Planner → Executor → Critic, with self-improvement."""
 from __future__ import annotations
 
+import asyncio
 import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
@@ -102,15 +103,8 @@ class Orchestrator:
         final = execution.get("final", "") if execution else ""
         self.memory.add_message(session_id, "assistant", final)
 
-        # Persist a long-term trace summary.
-        try:
-            await self.memory.store(
-                text=f"Q: {goal}\nA: {final}",
-                tags=["dialogue", session_id],
-                meta={"score": verdict.get("score", 0.0)},
-            )
-        except Exception as e:
-            logger.warning(f"long-term store failed: {e}")
+        # Fire-and-forget long-term persistence — doesn't block returning the result.
+        asyncio.create_task(self._store_async(goal, final, verdict, session_id))
 
         elapsed = (time.perf_counter() - start) * 1000.0
 
@@ -124,6 +118,19 @@ class Orchestrator:
             elapsed_ms=elapsed,
             trace=trace if self.settings.raw_settings.get("orchestrator", {}).get("trace", True) else [],
         )
+
+
+    async def _store_async(
+        self, goal: str, final: str, verdict: Dict[str, Any], session_id: str
+    ) -> None:
+        try:
+            await self.memory.store(
+                text=f"Q: {goal}\nA: {final}",
+                tags=["dialogue", session_id],
+                meta={"score": verdict.get("score", 0.0)},
+            )
+        except Exception as e:
+            logger.warning(f"long-term store failed: {e}")
 
 
 _orchestrator: Optional[Orchestrator] = None

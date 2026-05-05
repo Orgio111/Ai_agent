@@ -91,6 +91,9 @@ class ModelRouter:
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
     ) -> RoutingDecision:
+        # Infer tier from prompt text before acquiring the lock — pure regex, no shared state.
+        inferred_tier = self._infer_tier(prompt) if not model_id and not tier_hint else None
+
         with self._lock:
             # Explicit model override
             if model_id and model_id in self._registry:
@@ -104,11 +107,11 @@ class ModelRouter:
                     spec = self._best_available(candidates)
                     return self._make_decision(spec, temperature, max_tokens, f"tier_hint:{tier_hint}")
 
-            # Heuristic routing
-            inferred_tier = self._infer_tier(prompt)
-            candidates = self._tier_index.get(inferred_tier, self._tier_index["balanced"])
+            # Heuristic routing (tier already inferred above, outside the lock)
+            tier = inferred_tier or self._infer_tier(prompt)
+            candidates = self._tier_index.get(tier, self._tier_index["balanced"])
             spec = self._best_available(candidates)
-            return self._make_decision(spec, temperature, max_tokens, f"heuristic:{inferred_tier}")
+            return self._make_decision(spec, temperature, max_tokens, f"heuristic:{tier}")
 
     def _infer_tier(self, prompt: str) -> str:
         if len(prompt) < 100:

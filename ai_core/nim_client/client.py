@@ -53,6 +53,11 @@ class NIMClient:
                 base_url=self.base_url,
                 headers=headers,
                 timeout=self.timeout,
+                limits=httpx.Limits(
+                    max_connections=100,
+                    max_keepalive_connections=50,
+                    keepalive_expiry=30.0,
+                ),
             )
         return self._client
 
