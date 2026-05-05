@@ -72,3 +72,46 @@ class HttpTool(Tool):
             output={"status": resp.status_code, "body": body, "headers": dict(resp.headers)},
             error="" if resp.is_success else f"status {resp.status_code}",
         )
+
+    async def execute(self, args: Dict[str, Any]) -> Dict[str, Any]:
+        """Dict-based execute interface for tests and the executor agent."""
+        result = await self.run(
+            method=args.get("method", "GET"),
+            url=args.get("url", ""),
+            headers=args.get("headers"),
+            params=args.get("params"),
+            json_body=args.get("json_body"),
+            data=args.get("data"),
+        )
+        if not result.ok:
+            return {"status_code": 0, "content": "", "error": result.error, "url": args.get("url")}
+        out = result.output or {}
+        return {
+            "status_code": out.get("status", 0),
+            "content": out.get("body", ""),
+            "url": args.get("url"),
+        }
+
+
+class HttpGetTool(HttpTool):
+    """GET-only HTTP tool, registered as 'http_get' in the tool registry."""
+
+    name = "http_get"
+    description = "Perform an HTTP GET request and return the response body."
+    schema = {
+        "type": "object",
+        "properties": {
+            "url": {"type": "string"},
+            "headers": {"type": "object"},
+            "params": {"type": "object"},
+        },
+        "required": ["url"],
+    }
+
+    async def run(self, url: str, **kwargs: Any) -> ToolResult:
+        return await super().run(method="GET", url=url, **kwargs)
+
+    async def execute(self, args: Dict[str, Any]) -> Dict[str, Any]:
+        args = dict(args)
+        args["method"] = "GET"
+        return await super().execute(args)

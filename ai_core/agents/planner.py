@@ -1,11 +1,10 @@
 """Planner agent: turns a goal into an ordered plan of steps."""
 from __future__ import annotations
 
-from typing import Any, Dict, List
+from typing import Any, Dict
 
 from ..logging_setup import logger
 from .base import AgentContext, BaseAgent
-
 
 PLANNER_SYSTEM = """You are PLANNER, the deep-reasoning agent of an autonomous AI system.
 You decompose a user goal into 1-6 concrete, ordered steps a downstream Executor can run.

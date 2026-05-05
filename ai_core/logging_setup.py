@@ -7,7 +7,6 @@ from loguru import logger
 
 from .config import get_settings
 
-
 _configured = False
 
 

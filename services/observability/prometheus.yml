@@ -1,0 +1,49 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: jarvis-local
+
+scrape_configs:
+  - job_name: 'jarvis-broker'
+    static_configs:
+      - targets: ['broker:8001']
+    metrics_path: /metrics
+    scrape_interval: 10s
+
+  - job_name: 'jarvis-llm-engine'
+    static_configs:
+      - targets: ['llm-engine:8002']
+    metrics_path: /metrics
+    scrape_interval: 15s
+
+  - job_name: 'jarvis-memory'
+    static_configs:
+      - targets: ['memory:8003']
+    metrics_path: /metrics
+
+  - job_name: 'jarvis-agent-core'
+    static_configs:
+      - targets: ['agent-core:8000']
+    metrics_path: /metrics
+
+  - job_name: 'jarvis-tool-system'
+    static_configs:
+      - targets: ['tool-system:8004']
+    metrics_path: /metrics
+
+  - job_name: 'jarvis-voice'
+    static_configs:
+      - targets: ['voice:8005']
+    metrics_path: /metrics
+
+  - job_name: 'otel-collector'
+    static_configs:
+      - targets: ['otel-collector:8888']
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: []
+
+rule_files: []

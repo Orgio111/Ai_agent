@@ -134,3 +134,13 @@ def get_orchestrator() -> Orchestrator:
     if _orchestrator is None:
         _orchestrator = Orchestrator()
     return _orchestrator
+
+
+class AgentOrchestrator:
+    """Test-compatible orchestrator that accepts an AgentContext directly."""
+
+    def __init__(self) -> None:
+        self._orch = Orchestrator()
+
+    async def run(self, ctx: AgentContext) -> RunResult:
+        return await self._orch.run(goal=ctx.goal, session_id=ctx.session_id)
