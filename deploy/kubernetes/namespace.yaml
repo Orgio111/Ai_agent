@@ -1,0 +1,36 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: jarvis
+  labels:
+    app.kubernetes.io/name: jarvis
+    app.kubernetes.io/managed-by: kubectl
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: jarvis-config
+  namespace: jarvis
+data:
+  NVIDIA_NIM_BASE_URL: "https://integrate.api.nvidia.com/v1"
+  MODEL_COMPLEX: "meta/llama-3.1-70b-instruct"
+  MODEL_FAST: "mistralai/mistral-7b-instruct-v0.3"
+  MODEL_BALANCED: "mistralai/mixtral-8x7b-instruct-v0.1"
+  MODEL_EMBED: "nvidia/nv-embedqa-e5-v5"
+  BROKER_ADDR: "0.0.0.0:8001"
+  REDIS_URL: "redis://redis:6379"
+  DATABASE_URL: "postgresql://jarvis:jarvis@postgres:5432/jarvis"
+  MEMORY_VECTOR_DIM: "1024"
+  WHISPER_MODEL: "base"
+  WHISPER_DEVICE: "cpu"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: jarvis-secrets
+  namespace: jarvis
+type: Opaque
+stringData:
+  NVIDIA_NIM_API_KEY: "nvapi-placeholder-replace-me"
+  POSTGRES_PASSWORD: "jarvis"
+  TOOL_AUTH_SECRET: "jarvis-production-secret-change-me"

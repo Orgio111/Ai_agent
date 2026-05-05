@@ -31,3 +31,7 @@ class Tool(ABC):
 
     def describe(self) -> Dict[str, Any]:
         return {"name": self.name, "description": self.description, "schema": self.schema}
+
+    def __getitem__(self, key: str) -> Any:
+        """Allow dict-style access so both t.name and t["name"] work."""
+        return getattr(self, key)

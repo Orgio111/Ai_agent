@@ -1,0 +1,11 @@
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+pydantic==2.9.2
+websockets==13.1
+edge-tts==6.1.12
+openai-whisper==20231117
+numpy==1.26.4
+webrtcvad==2.0.10
+prometheus-client==0.21.0
+python-dotenv==1.0.1
+loguru==0.7.2

@@ -17,7 +17,6 @@ from typing import Any, Dict, List, Optional
 import faiss
 import numpy as np
 
-from ..config import get_settings
 from ..logging_setup import logger
 
 
@@ -39,36 +38,42 @@ def _normalize(vec: np.ndarray) -> np.ndarray:
 class LongTermMemory:
     """Persistent FAISS store with simple JSON sidecar metadata."""
 
-    def __init__(self, dim: int, persist_dir: Path) -> None:
+    def __init__(self, dim: int, persist_dir: Optional[Path] = None) -> None:
         self.dim = dim
-        self.persist_dir = Path(persist_dir)
-        self.persist_dir.mkdir(parents=True, exist_ok=True)
-        self.index_path = self.persist_dir / "vectors.faiss"
-        self.meta_path = self.persist_dir / "meta.json"
+        self._persist_dir = Path(persist_dir) if persist_dir is not None else None
+        if self._persist_dir is not None:
+            self._persist_dir.mkdir(parents=True, exist_ok=True)
+            self.index_path = self._persist_dir / "vectors.faiss"
+            self.meta_path = self._persist_dir / "meta.json"
+        else:
+            self.index_path = None  # type: ignore[assignment]
+            self.meta_path = None  # type: ignore[assignment]
         self._lock = threading.Lock()
 
         self.index = self._load_index()
         self.records: List[MemoryRecord] = self._load_meta()
 
     def _load_index(self) -> faiss.Index:
-        if self.index_path.exists():
+        if self.index_path is not None and self.index_path.exists():
             try:
                 return faiss.read_index(str(self.index_path))
-            except Exception as e:  # pragma: no cover - corruption guard
+            except Exception as e:  # pragma: no cover
                 logger.warning(f"FAISS index unreadable, rebuilding: {e}")
         return faiss.IndexFlatIP(self.dim)
 
     def _load_meta(self) -> List[MemoryRecord]:
-        if not self.meta_path.exists():
+        if self.meta_path is None or not self.meta_path.exists():
             return []
         try:
             data = json.loads(self.meta_path.read_text(encoding="utf-8"))
             return [MemoryRecord(**r) for r in data]
-        except Exception as e:  # pragma: no cover - corruption guard
+        except Exception as e:  # pragma: no cover
             logger.warning(f"Memory metadata unreadable, resetting: {e}")
             return []
 
     def _persist(self) -> None:
+        if self.index_path is None or self.meta_path is None:
+            return
         faiss.write_index(self.index, str(self.index_path))
         self.meta_path.write_text(
             json.dumps([asdict(r) for r in self.records], ensure_ascii=False, indent=2),
@@ -81,13 +86,14 @@ class LongTermMemory:
     def add(
         self,
         text: str,
-        embedding: List[float],
+        embedding: Any,
         tags: Optional[List[str]] = None,
         meta: Optional[Dict[str, Any]] = None,
     ) -> MemoryRecord:
-        if len(embedding) != self.dim:
-            raise ValueError(f"Embedding dim {len(embedding)} != expected {self.dim}")
-        vec = _normalize(np.asarray([embedding], dtype="float32"))
+        arr = np.asarray(embedding, dtype="float32").flatten()
+        if len(arr) != self.dim:
+            raise ValueError(f"Embedding dim {len(arr)} != expected {self.dim}")
+        vec = _normalize(arr.reshape(1, -1))
         rec = MemoryRecord(id=str(uuid.uuid4()), text=text, tags=tags or [], meta=meta or {})
         with self._lock:
             self.index.add(vec)
@@ -97,15 +103,16 @@ class LongTermMemory:
 
     def search(
         self,
-        embedding: List[float],
+        embedding: Any,
         k: int = 5,
         min_score: float = 0.0,
     ) -> List[Dict[str, Any]]:
         if self.index.ntotal == 0:
             return []
-        if len(embedding) != self.dim:
-            raise ValueError(f"Embedding dim {len(embedding)} != expected {self.dim}")
-        q = _normalize(np.asarray([embedding], dtype="float32"))
+        arr = np.asarray(embedding, dtype="float32").flatten()
+        if len(arr) != self.dim:
+            raise ValueError(f"Embedding dim {len(arr)} != expected {self.dim}")
+        q = _normalize(arr.reshape(1, -1))
         k = min(k, self.index.ntotal)
         scores, idxs = self.index.search(q, k)
         out: List[Dict[str, Any]] = []
