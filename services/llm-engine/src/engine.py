@@ -59,6 +59,11 @@ class LLMEngine:
                 "Content-Type": "application/json",
             },
             timeout=self._timeout,
+            limits=httpx.Limits(
+                max_connections=100,
+                max_keepalive_connections=50,
+                keepalive_expiry=30.0,
+            ),
         )
         # Verify NIM is reachable
         try:
@@ -84,6 +89,8 @@ class LLMEngine:
             max_tokens=req.max_tokens,
         )
 
+        # Large/complex models → GPU; fast/balanced models fall through to CPU
+        # if GPU memory is exhausted, so both run concurrently.
         gpu_handle = self._gpu.allocate(decision.model_id, decision.gpu_mem_gb)
         start = time.monotonic()
         try:
@@ -135,8 +142,15 @@ class LLMEngine:
             "truncate": "END",
         }
 
-        async with self._semaphore:
-            data = await self._post_with_retry("/embeddings", payload)
+        # Embeddings are lightweight — allocate from CPU pool so GPU stays
+        # free for concurrent LLM inference requests.
+        cpu_handle = self._gpu.allocate(embed_model, required_mem_gb=0.0, prefer_cpu=True)
+        try:
+            async with self._semaphore:
+                data = await self._post_with_retry("/embeddings", payload)
+        finally:
+            if cpu_handle:
+                self._gpu.release(cpu_handle)
 
         embeddings = [item["embedding"] for item in data["data"]]
         dim = len(embeddings[0]) if embeddings else 0
@@ -153,11 +167,12 @@ class LLMEngine:
         except Exception:
             pass
 
+        gpu_status = self._gpu.status()
         return HealthResponse(
             status="healthy" if nim_ok else "degraded",
             nim_reachable=nim_ok,
             circuit_breaker=self._cb.state,
-            active_gpus=len(self._gpu.status()["devices"]),
+            active_gpus=gpu_status["gpu_count"],
             queue_depth=self._semaphore._value,
         )
 

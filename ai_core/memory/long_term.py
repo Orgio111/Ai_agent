@@ -20,6 +20,22 @@ import numpy as np
 from ..logging_setup import logger
 
 
+def _try_move_to_gpu(cpu_index: "faiss.Index") -> "faiss.Index":
+    """Move a FAISS index to GPU[0] if faiss-gpu is available.
+
+    Searches on GPU are orders of magnitude faster for large indices.
+    GPU index is kept in-memory only; persistence always uses the CPU copy.
+    Returns the original cpu_index unchanged on any failure.
+    """
+    try:
+        res = faiss.StandardGpuResources()  # type: ignore[attr-defined]
+        gpu_idx = faiss.index_cpu_to_gpu(res, 0, cpu_index)  # type: ignore[attr-defined]
+        logger.info("FAISS index moved to GPU for accelerated search")
+        return gpu_idx
+    except (AttributeError, RuntimeError, Exception):
+        return cpu_index
+
+
 @dataclass
 class MemoryRecord:
     id: str
@@ -50,7 +66,9 @@ class LongTermMemory:
             self.meta_path = None  # type: ignore[assignment]
         self._lock = threading.Lock()
 
-        self.index = self._load_index()
+        cpu_index = self._load_index()
+        self.index = _try_move_to_gpu(cpu_index)
+        self._cpu_index = cpu_index  # kept for persistence (GPU index can't be saved directly)
         self.records: List[MemoryRecord] = self._load_meta()
 
     def _load_index(self) -> faiss.Index:
@@ -74,7 +92,9 @@ class LongTermMemory:
     def _persist(self) -> None:
         if self.index_path is None or self.meta_path is None:
             return
-        faiss.write_index(self.index, str(self.index_path))
+        # Always persist the CPU copy — GPU indexes cannot be written to disk.
+        save_index = self._cpu_index if self.index is not self._cpu_index else self.index
+        faiss.write_index(save_index, str(self.index_path))
         self.meta_path.write_text(
             json.dumps([asdict(r) for r in self.records], ensure_ascii=False, indent=2),
             encoding="utf-8",
@@ -96,6 +116,9 @@ class LongTermMemory:
         vec = _normalize(arr.reshape(1, -1))
         rec = MemoryRecord(id=str(uuid.uuid4()), text=text, tags=tags or [], meta=meta or {})
         with self._lock:
+            if self.index is not self._cpu_index:
+                # Keep CPU copy in sync for persistence.
+                self._cpu_index.add(vec)
             self.index.add(vec)
             self.records.append(rec)
             self._persist()
@@ -127,6 +150,8 @@ class LongTermMemory:
 
     def reset(self) -> None:
         with self._lock:
-            self.index = faiss.IndexFlatIP(self.dim)
+            cpu_index = faiss.IndexFlatIP(self.dim)
+            self._cpu_index = cpu_index
+            self.index = _try_move_to_gpu(cpu_index)
             self.records = []
             self._persist()
