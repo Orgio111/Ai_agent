@@ -2,7 +2,7 @@ FROM python:3.12-slim
 WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    gcc g++ libpq-dev && rm -rf /var/lib/apt/lists/*
+    gcc g++ libpq-dev libssl-dev curl && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
@@ -11,4 +11,5 @@ COPY src ./src
 
 ENV PYTHONUNBUFFERED=1
 EXPOSE 8003
+
 CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8003", "--log-level", "info"]
